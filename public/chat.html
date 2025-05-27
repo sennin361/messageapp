@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>仙人チャット</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="chat-container">
+    <ul id="messages"></ul>
+    <form id="chatForm">
+      <input id="message" autocomplete="off" placeholder="メッセージを入力" />
+      <input type="file" id="media" />
+      <button type="submit" class="send">送信</button>
+      <button type="button" id="leave" class="leave">退室</button>
+    </form>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const name = params.get('name');
+    const room = params.get('room');
+    const socket = io();
+
+    socket.emit('join', { name, room });
+
+    socket.on('banned', () => alert("あなたはバンされています"));
+
+    socket.on('chat message', ({ name, msg, time }) => {
+      const li = document.createElement('li');
+      li.className = name === params.get('name') ? 'me' : 'you';
+      li.innerHTML = `<span class="meta">${name} (${time})</span><div class="msg">${msg}</div>`;
+      document.getElementById('messages').appendChild(li);
+    });
+
+    document.getElementById('chatForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const file = document.getElementById('media').files[0];
+      const message = document.getElementById('message').value;
+
+      if (file) {
+        const formData = new FormData();
+        formData.append('media', file);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        socket.emit('chat message', `<a href="${data.filePath}" target="_blank">メディア</a>`);
+      } else {
+        socket.emit('chat message', message);
+      }
+
+      document.getElementById('message').value = '';
+      document.getElementById('media').value = '';
+    };
+
+    document.getElementById('leave').onclick = () => location.href = 'index.html';
+  </script>
+</body>
+</html>
