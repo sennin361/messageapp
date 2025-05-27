@@ -1,138 +1,227 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
-const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-  }
-});
+const io = new Server(server);
 
-app.use(cors());
+const PORT = process.env.PORT || 3000;
+
+// メディアファイルの保存設定
+const upload = multer({ dest: path.join(__dirname, 'public', 'uploads/') });
+
+// データ保存用（メモリ上）
+let users = {};         // socket.id → {name, room}
+let bannedUsers = new Set(); // 名前で管理
+let chatLogs = [];      // 全チャットログ
+let rooms = {};         // room名 → socket.id[]
+
+// 管理者パスワード
+const ADMIN_PASS = 'sennin25251515';
+
+// public フォルダを静的ファイルとして配信
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
 
-// アップロード設定
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + path.extname(file.originalname);
-    cb(null, uniqueName);
-  }
-});
-const upload = multer({ storage });
-
-// 全体データ保持
-let users = {}; // socket.id -> { room, name }
-let bannedUsers = new Set();
-let chatLogs = []; // { room, name, message, time, type }
-
-// アップロード用エンドポイント
+// 画像・動画アップロード用API
 app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'ファイルがありません' });
+  // ファイルのURLを返す
   const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ url: fileUrl });
 });
 
-// 一斉送信 (全体)
-app.post('/admin/broadcast', (req, res) => {
-  const { message } = req.body;
-  io.emit('chat', { name: '[管理者]', message, time: new Date().toLocaleTimeString(), type: 'text' });
-  chatLogs.push({ room: 'all', name: '[管理者]', message, time: new Date().toLocaleTimeString(), type: 'text' });
-  res.sendStatus(200);
+// 管理者パスワード認証用API（簡易）
+app.post('/admin/auth', (req, res) => {
+  const { password } = req.body;
+  if (password === ADMIN_PASS) {
+    res.json({ success: true });
+  } else {
+    res.json({ success: false });
+  }
 });
 
-// 一斉送信（ルーム別）
-app.post('/admin/broadcastRoom', (req, res) => {
-  const { message, room } = req.body;
-  io.to(room).emit('chat', { name: '[管理者]', message, time: new Date().toLocaleTimeString(), type: 'text' });
-  chatLogs.push({ room, name: '[管理者]', message, time: new Date().toLocaleTimeString(), type: 'text' });
-  res.sendStatus(200);
-});
-
-// チャット履歴取得
-app.get('/admin/chatlogs', (req, res) => {
-  res.json(chatLogs);
-});
-
-// サーバーリセット
+// サーバーリセットAPI（管理者専用）
 app.post('/admin/reset', (req, res) => {
+  // 初期化処理
   users = {};
   bannedUsers.clear();
   chatLogs = [];
-  res.sendStatus(200);
+  rooms = {};
+  io.emit('serverReset');
+  res.json({ success: true });
 });
 
-// ユーザーBAN
+// 垢バンAPI（管理者専用）
 app.post('/admin/ban', (req, res) => {
-  const { name } = req.body;
-  bannedUsers.add(name);
-  res.sendStatus(200);
+  const { username } = req.body;
+  if (username) {
+    bannedUsers.add(username);
+    // 接続中なら切断
+    for (const [id, user] of Object.entries(users)) {
+      if (user.name === username) {
+        io.sockets.sockets.get(id)?.disconnect(true);
+      }
+    }
+    res.json({ success: true });
+  } else {
+    res.json({ success: false, error: 'username required' });
+  }
+});
+
+// 一斉送信API（管理者専用） - 全体
+app.post('/admin/broadcast', (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.json({ success: false, error: 'message required' });
+
+  io.emit('adminMessage', {
+    username: '管理者',
+    message,
+    time: new Date().toISOString(),
+  });
+  res.json({ success: true });
+});
+
+// 一斉送信API（管理者専用） - ルーム単位
+app.post('/admin/roomBroadcast', (req, res) => {
+  const { room, message } = req.body;
+  if (!room || !message) return res.json({ success: false, error: 'room and message required' });
+
+  io.to(room).emit('adminMessage', {
+    username: '管理者',
+    message,
+    time: new Date().toISOString(),
+  });
+  res.json({ success: true });
 });
 
 io.on('connection', (socket) => {
-  console.log('ユーザー接続:', socket.id);
-
-  socket.on('join', ({ name, room }) => {
+  // 新規ユーザー参加時
+  socket.on('join', ({ name, room, password }, callback) => {
     if (bannedUsers.has(name)) {
-      socket.emit('banned');
-      socket.disconnect();
-      return;
+      return callback({ error: 'あなたは垢バンされています。' });
+    }
+    if (!name || !room) {
+      return callback({ error: '名前とあいことば（ルーム名）が必要です。' });
     }
 
+    // あいことばでマッチング（ルーム参加）
     socket.join(room);
     users[socket.id] = { name, room };
 
-    io.to(room).emit('chat', {
-      name: '[システム]',
-      message: `${name}が入室しました`,
-      time: new Date().toLocaleTimeString(),
-      type: 'text'
+    if (!rooms[room]) rooms[room] = new Set();
+    rooms[room].add(socket.id);
+
+    // 過去ログをルーム限定で送信
+    const roomLogs = chatLogs.filter((log) => log.room === room);
+
+    // 全クライアントに参加通知
+    io.to(room).emit('message', {
+      username: 'システム',
+      message: `${name} さんが入室しました。`,
+      time: new Date().toISOString(),
+      system: true,
     });
+
+    // 過去ログ送信（ルーム内）
+    socket.emit('chatHistory', roomLogs);
+
+    // 管理画面へも全チャット履歴送信（リアルタイム）
+    io.to('admin').emit('allChatLogs', chatLogs);
+
+    callback({ success: true });
   });
 
-  socket.on('chat', (msg) => {
+  // 管理者専用ルーム参加
+  socket.on('adminJoin', (callback) => {
+    socket.join('admin');
+    callback({ success: true });
+  });
+
+  // メッセージ送信
+  socket.on('sendMessage', (message, callback) => {
     const user = users[socket.id];
-    if (!user) return;
-
-    const payload = {
-      name: user.name,
-      message: msg.message,
-      time: new Date().toLocaleTimeString(),
-      type: msg.type
+    if (!user) return callback({ error: 'ユーザー情報なし' });
+    if (bannedUsers.has(user.name)) {
+      return callback({ error: 'あなたは垢バンされています。' });
+    }
+    const time = new Date().toISOString();
+    const chatData = {
+      username: user.name,
+      message,
+      time,
+      room: user.room,
+      system: false,
     };
+    chatLogs.push(chatData);
 
-    chatLogs.push({ room: user.room, ...payload });
-    io.to(user.room).emit('chat', payload);
+    io.to(user.room).emit('message', chatData);
+    io.to('admin').emit('allChatLogs', chatLogs);
+
+    callback({ success: true });
   });
 
+  // メディア送信（URLとして受け取り）
+  socket.on('sendMedia', (mediaData, callback) => {
+    const user = users[socket.id];
+    if (!user) return callback({ error: 'ユーザー情報なし' });
+    if (bannedUsers.has(user.name)) {
+      return callback({ error: 'あなたは垢バンされています。' });
+    }
+    const time = new Date().toISOString();
+    const chatData = {
+      username: user.name,
+      message: '',
+      media: mediaData.url,
+      mediaType: mediaData.type,
+      time,
+      room: user.room,
+      system: false,
+    };
+    chatLogs.push(chatData);
+
+    io.to(user.room).emit('message', chatData);
+    io.to('admin').emit('allChatLogs', chatLogs);
+
+    callback({ success: true });
+  });
+
+  // 退室処理
+  socket.on('exit', () => {
+    const user = users[socket.id];
+    if (user) {
+      io.to(user.room).emit('message', {
+        username: 'システム',
+        message: `${user.name} さんが退室しました。`,
+        time: new Date().toISOString(),
+        system: true,
+      });
+      rooms[user.room]?.delete(socket.id);
+      delete users[socket.id];
+      socket.leave(user.room);
+    }
+  });
+
+  // 切断時処理
   socket.on('disconnect', () => {
     const user = users[socket.id];
     if (user) {
-      io.to(user.room).emit('chat', {
-        name: '[システム]',
-        message: `${user.name}が退室しました`,
-        time: new Date().toLocaleTimeString(),
-        type: 'text'
+      io.to(user.room).emit('message', {
+        username: 'システム',
+        message: `${user.name} さんが切断されました。`,
+        time: new Date().toISOString(),
+        system: true,
       });
+      rooms[user.room]?.delete(socket.id);
       delete users[socket.id];
     }
   });
 });
 
-const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`サーバー起動: http://localhost:${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
