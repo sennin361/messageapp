@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>仙人チャット</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+    #login, #chat {
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #chat {
+      display: none;
+    }
+    .bubble {
+      max-width: 80%;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 10px;
+      word-break: break-word;
+    }
+    .me {
+      background: #d4fcdc;
+      align-self: flex-end;
+      text-align: right;
+    }
+    .other {
+      background: #ffffff;
+      align-self: flex-start;
+      text-align: left;
+    }
+    .bubble small {
+      display: block;
+      font-size: 10px;
+      margin-top: 4px;
+      color: #666;
+    }
+    #messages {
+      display: flex;
+      flex-direction: column;
+      height: 300px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: #fafafa;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #send {
+      background: #4CAF50;
+      color: white;
+    }
+    #exit {
+      background: #f44336;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<div id="login">
+  <h2>仙人チャット - ログイン</h2>
+  <input type="text" id="name" placeholder="名前"><br><br>
+  <input type="text" id="room" placeholder="あいことば（部屋名）"><br><br>
+  <button onclick="joinChat()">入室</button>
+</div>
+
+<div id="chat">
+  <h2>仙人チャット</h2>
+  <div id="messages"></div>
+  <input type="text" id="message" placeholder="メッセージ">
+  <button id="send" onclick="sendMessage()">送信</button>
+  <button id="exit" onclick="exitChat()">退室</button><br><br>
+  <input type="file" id="fileInput" onchange="uploadFile()" />
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io();
+  let myName = '';
+  let myRoom = '';
+
+  function joinChat() {
+    const name = document.getElementById('name').value.trim();
+    const room = document.getElementById('room').value.trim();
+    if (!name || !room) return alert('名前とあいことばを入力してください');
+    myName = name;
+    myRoom = room;
+    socket.emit('join', { name, room });
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('chat').style.display = 'block';
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('message');
+    const message = input.value.trim();
+    if (!message) return;
+    socket.emit('chat', { message, type: 'text' });
+    input.value = '';
+  }
+
+  function exitChat() {
+    location.reload();
+  }
+
+  socket.on('chat', (data) => {
+    const msgBox = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'bubble ' + (data.name === myName ? 'me' : 'other');
+    if (data.type === 'text') {
+      div.innerHTML = `<strong>${data.name}</strong><br>${data.message}<small>${data.time}</small>`;
+    } else if (data.type === 'image') {
+      div.innerHTML = `<strong>${data.name}</strong><br><img src="${data.message}" style="max-width:100%"><small>${data.time}</small>`;
+    } else if (data.type === 'video') {
+      div.innerHTML = `<strong>${data.name}</strong><br><video src="${data.message}" controls style="max-width:100%"></video><small>${data.time}</small>`;
+    }
+    msgBox.appendChild(div);
+    msgBox.scrollTop = msgBox.scrollHeight;
+  });
+
+  socket.on('banned', () => {
+    alert('あなたはBANされています');
+    location.reload();
+  });
+
+  function uploadFile() {
+    const file = document.getElementById('fileInput').files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/upload', {
+      method: 'POST',
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      const type = file.type.startsWith('video') ? 'video' : 'image';
+      socket.emit('chat', { message: data.url, type });
+    });
+  }
+</script>
+
+</body>
+</html>
