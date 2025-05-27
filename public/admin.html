@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>管理画面</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="admin">
+    <h2>仙人チャット 管理</h2>
+    <div id="login">
+      <input type="password" id="adminPass" placeholder="パスワード" />
+      <button onclick="checkLogin()">ログイン</button>
+    </div>
+    <div id="panel" style="display:none;">
+      <button onclick="reset()">サーバーリセット</button>
+      <input type="text" id="banName" placeholder="バンする名前" />
+      <button onclick="ban()">垢バン</button>
+      <input type="text" id="broadcast" placeholder="全体メッセージ" />
+      <button onclick="sendBroadcast()">一斉送信</button>
+      <input type="text" id="roomcastRoom" placeholder="ルーム名" />
+      <input type="text" id="roomcastMsg" placeholder="ルームメッセージ" />
+      <button onclick="sendRoomcast()">ルーム送信</button>
+      <h3>リアルタイムチャットログ</h3>
+      <ul id="log"></ul>
+    </div>
+  </div>
+  <script>
+    async function checkLogin() {
+      const res = await fetch('/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: document.getElementById('adminPass').value })
+      });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('panel').style.display = 'block';
+        loadLogs();
+        setInterval(loadLogs, 3000);
+      } else {
+        alert('パスワードが違います');
+      }
+    }
+
+    async function loadLogs() {
+      const res = await fetch('/logs');
+      const logs = await res.json();
+      const ul = document.getElementById('log');
+      ul.innerHTML = '';
+      logs.forEach(log => {
+        const li = document.createElement('li');
+        li.textContent = `[${log.time}] ${log.name}: ${log.msg}`;
+        ul.appendChild(li);
+      });
+    }
+
+    async function reset() {
+      await fetch('/reset', { method: 'POST' });
+    }
+
+    async function ban() {
+      const name = document.getElementById('banName').value;
+      await fetch('/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+    }
+
+    async function sendBroadcast() {
+      const message = document.getElementById('broadcast').value;
+      await fetch('/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+    }
+
+    async function sendRoomcast() {
+      const message = document.getElementById('roomcastMsg').value;
+      const room = document.getElementById('roomcastRoom').value;
+      await fetch('/roomcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, room })
+      });
+    }
+  </script>
+</body>
+</html>
