@@ -1,0 +1,191 @@
+/* 全体設定 */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 10px;
+  background: #f0f5f9;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+h2 {
+  margin-bottom: 15px;
+}
+
+input, button {
+  font-size: 1rem;
+  padding: 8px 10px;
+  margin: 5px 0;
+  border-radius: 5px;
+  border: 1px solid #bbb;
+  outline: none;
+  box-sizing: border-box;
+}
+
+input:focus {
+  border-color: #3aa14f;
+}
+
+button {
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  border: none;
+  color: white;
+  font-weight: bold;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+/* ホーム画面 */
+#login {
+  width: 300px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+#login input {
+  width: 100%;
+}
+
+/* チャット画面 */
+#chat {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  height: 100%;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  padding: 15px;
+  box-sizing: border-box;
+}
+
+#messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 10px;
+  background: #e6f2e6;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+/* 吹き出し */
+.bubble {
+  max-width: 70%;
+  margin-bottom: 10px;
+  padding: 10px 15px;
+  border-radius: 15px;
+  position: relative;
+  word-wrap: break-word;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.bubble strong {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: bold;
+  color: #2a6d2a;
+}
+
+.bubble small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #666;
+}
+
+.me {
+  background: #3aa14f;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 0;
+}
+
+.other {
+  background: white;
+  color: #333;
+  align-self: flex-start;
+  border-bottom-left-radius: 0;
+  box-shadow: 0 0 3px rgba(0,0,0,0.1);
+}
+
+/* 入力エリア */
+#inputArea {
+  display: flex;
+  gap: 10px;
+}
+
+#messageInput {
+  flex-grow: 1;
+  border-radius: 25px;
+  padding-left: 15px;
+  border: 1px solid #ccc;
+}
+
+#send {
+  background-color: #3aa14f;
+  border-radius: 25px;
+  padding: 10px 20px;
+}
+
+#exit {
+  background-color: #d43f3f;
+  border-radius: 25px;
+  padding: 10px 20px;
+}
+
+/* メディアアップロード */
+#mediaArea {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+/* 管理者画面 */
+#admin {
+  width: 350px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+#adminContent button {
+  margin: 5px 5px 15px 5px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-weight: bold;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+#adminContent button:nth-child(1) { background-color: #666; } /* ログアウト */
+#adminContent button:nth-child(2) { background-color: #d43f3f; } /* 垢バン */
+#adminContent button:nth-child(3) { background-color: #3aa14f; } /* 一斉送信 */
+#adminContent button:nth-child(4) { background-color: #228b22; } /* ルーム一斉送信 */
+#adminContent button:nth-child(5) { background-color: #555; } /* サーバーリセット */
+
+#adminMessages {
+  font-size: 12px;
+  color: #111;
+  background: #f9f9f9;
+  border-radius: 5px;
+  padding: 10px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
