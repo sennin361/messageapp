@@ -2,160 +2,239 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>仙人チャット</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #f0f0f0;
-      margin: 0;
-      padding: 0;
-    }
-    #login, #chat {
-      max-width: 600px;
-      margin: 50px auto;
-      padding: 20px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    #chat {
-      display: none;
-    }
-    .bubble {
-      max-width: 80%;
-      padding: 10px;
-      margin: 5px 0;
-      border-radius: 10px;
-      word-break: break-word;
-    }
-    .me {
-      background: #d4fcdc;
-      align-self: flex-end;
-      text-align: right;
-    }
-    .other {
-      background: #ffffff;
-      align-self: flex-start;
-      text-align: left;
-    }
-    .bubble small {
-      display: block;
-      font-size: 10px;
-      margin-top: 4px;
-      color: #666;
-    }
-    #messages {
-      display: flex;
-      flex-direction: column;
-      height: 300px;
-      overflow-y: auto;
-      margin-bottom: 10px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      background: #fafafa;
-    }
-    button {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    #send {
-      background: #4CAF50;
-      color: white;
-    }
-    #exit {
-      background: #f44336;
-      color: white;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<div id="login">
-  <h2>仙人チャット - ログイン</h2>
-  <input type="text" id="name" placeholder="名前"><br><br>
-  <input type="text" id="room" placeholder="あいことば（部屋名）"><br><br>
-  <button onclick="joinChat()">入室</button>
-</div>
+  <!-- ホーム画面 -->
+  <div id="login">
+    <h2>仙人チャットへようこそ</h2>
+    <label for="username">名前：</label>
+    <input type="text" id="username" placeholder="名前を入力" />
+    
+    <label for="room">あいことば（ルーム名）：</label>
+    <input type="text" id="room" placeholder="あいことばを入力" />
+    
+    <button onclick="joinChat()">入室</button>
+    <button onclick="showAdmin()">管理者ログイン</button>
+  </div>
 
-<div id="chat">
-  <h2>仙人チャット</h2>
-  <div id="messages"></div>
-  <input type="text" id="message" placeholder="メッセージ">
-  <button id="send" onclick="sendMessage()">送信</button>
-  <button id="exit" onclick="exitChat()">退室</button><br><br>
-  <input type="file" id="fileInput" onchange="uploadFile()" />
-</div>
+  <!-- チャット画面 -->
+  <div id="chat" style="display:none;">
+    <h2>仙人チャット</h2>
+    <div id="messages"></div>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script>
-  const socket = io();
-  let myName = '';
-  let myRoom = '';
+    <div id="inputArea">
+      <input type="text" id="messageInput" placeholder="メッセージを入力" />
+      <button id="send">送信</button>
+      <button id="exit">退室</button>
+    </div>
 
-  function joinChat() {
-    const name = document.getElementById('name').value.trim();
-    const room = document.getElementById('room').value.trim();
-    if (!name || !room) return alert('名前とあいことばを入力してください');
-    myName = name;
-    myRoom = room;
-    socket.emit('join', { name, room });
-    document.getElementById('login').style.display = 'none';
-    document.getElementById('chat').style.display = 'block';
-  }
+    <div id="mediaArea">
+      <input type="file" id="imageInput" accept="image/*" />
+      <input type="file" id="videoInput" accept="video/*" />
+    </div>
+  </div>
 
-  function sendMessage() {
-    const input = document.getElementById('message');
-    const message = input.value.trim();
-    if (!message) return;
-    socket.emit('chat', { message, type: 'text' });
-    input.value = '';
-  }
+  <!-- 管理者画面 -->
+  <div id="admin" style="display:none;">
+    <h2>管理者画面</h2>
+    <input type="password" id="adminPass" placeholder="パスワード入力" />
+    <button onclick="loginAdmin()">ログイン</button>
+    <div id="adminContent" style="display:none;">
+      <button onclick="logoutAdmin()">ログアウト</button>
+      <button onclick="banUserPrompt()">垢バン</button>
+      <button onclick="sendBroadcastPrompt()">一斉送信</button>
+      <button onclick="sendRoomBroadcastPrompt()">ルーム一斉送信</button>
+      <button onclick="resetServer()">サーバーリセット</button>
+      <h3>全チャット履歴（リアルタイム表示）</h3>
+      <div id="adminMessages" style="height:300px; overflow-y:auto; border:1px solid #ccc; margin-top:10px; background:#fafafa; padding:10px;"></div>
+    </div>
+  </div>
 
-  function exitChat() {
-    location.reload();
-  }
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
 
-  socket.on('chat', (data) => {
-    const msgBox = document.getElementById('messages');
-    const div = document.createElement('div');
-    div.className = 'bubble ' + (data.name === myName ? 'me' : 'other');
-    if (data.type === 'text') {
-      div.innerHTML = `<strong>${data.name}</strong><br>${data.message}<small>${data.time}</small>`;
-    } else if (data.type === 'image') {
-      div.innerHTML = `<strong>${data.name}</strong><br><img src="${data.message}" style="max-width:100%"><small>${data.time}</small>`;
-    } else if (data.type === 'video') {
-      div.innerHTML = `<strong>${data.name}</strong><br><video src="${data.message}" controls style="max-width:100%"></video><small>${data.time}</small>`;
+    const loginDiv = document.getElementById('login');
+    const chatDiv = document.getElementById('chat');
+    const adminDiv = document.getElementById('admin');
+    const adminContentDiv = document.getElementById('adminContent');
+    const adminMessagesDiv = document.getElementById('adminMessages');
+
+    const usernameInput = document.getElementById('username');
+    const roomInput = document.getElementById('room');
+    const messageInput = document.getElementById('messageInput');
+    const messagesDiv = document.getElementById('messages');
+
+    const sendBtn = document.getElementById('send');
+    const exitBtn = document.getElementById('exit');
+
+    const imageInput = document.getElementById('imageInput');
+    const videoInput = document.getElementById('videoInput');
+
+    let currentUsername = '';
+    let currentRoom = '';
+    let isAdmin = false;
+
+    // ホーム画面→チャット画面
+    function joinChat() {
+      const username = usernameInput.value.trim();
+      const room = roomInput.value.trim();
+      if(!username || !room) {
+        alert('名前とあいことばを入力してください');
+        return;
+      }
+      currentUsername = username;
+      currentRoom = room;
+      socket.emit('joinRoom', { username, room });
+      loginDiv.style.display = 'none';
+      chatDiv.style.display = 'flex';
     }
-    msgBox.appendChild(div);
-    msgBox.scrollTop = msgBox.scrollHeight;
-  });
 
-  socket.on('banned', () => {
-    alert('あなたはBANされています');
-    location.reload();
-  });
+    // 管理画面表示
+    function showAdmin() {
+      loginDiv.style.display = 'none';
+      adminDiv.style.display = 'block';
+    }
 
-  function uploadFile() {
-    const file = document.getElementById('fileInput').files[0];
-    if (!file) return;
+    // 管理者ログイン
+    function loginAdmin() {
+      const pass = document.getElementById('adminPass').value;
+      if(pass === 'sennin25251515') {  // パスワード
+        isAdmin = true;
+        adminContentDiv.style.display = 'block';
+        adminDiv.querySelector('input').style.display = 'none';
+        adminDiv.querySelector('button').style.display = 'none';
+        socket.emit('adminLogin');
+      } else {
+        alert('パスワードが違います');
+      }
+    }
 
-    const formData = new FormData();
-    formData.append('file', file);
+    // 管理者ログアウト
+    function logoutAdmin() {
+      isAdmin = false;
+      adminContentDiv.style.display = 'none';
+      adminDiv.querySelector('input').style.display = 'inline-block';
+      adminDiv.querySelector('button').style.display = 'inline-block';
+      adminDiv.style.display = 'none';
+      loginDiv.style.display = 'block';
+      socket.emit('adminLogout');
+    }
 
-    fetch('/upload', {
-      method: 'POST',
-      body: formData
-    })
-    .then(res => res.json())
-    .then(data => {
-      const type = file.type.startsWith('video') ? 'video' : 'image';
-      socket.emit('chat', { message: data.url, type });
+    // メッセージ表示用関数
+    function addMessage(data, me = false) {
+      const div = document.createElement('div');
+      div.classList.add('bubble');
+      div.classList.add(me ? 'me' : 'other');
+
+      let content = '';
+      if(data.type === 'text') {
+        content = data.text;
+      } else if(data.type === 'image') {
+        content = `<img src="${data.url}" alt="image" style="max-width:200px; max-height:150px;">`;
+      } else if(data.type === 'video') {
+        content = `<video controls style="max-width:200px; max-height:150px;"><source src="${data.url}"></video>`;
+      }
+
+      div.innerHTML = `<strong>${data.username}</strong><br>${content}<br><small>${new Date(data.time).toLocaleTimeString()}</small>`;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // 送信ボタン押下
+    sendBtn.onclick = () => {
+      const text = messageInput.value.trim();
+      if(text) {
+        socket.emit('chatMessage', { type: 'text', text, room: currentRoom });
+        messageInput.value = '';
+      }
+    };
+
+    // 退室ボタン押下
+    exitBtn.onclick = () => {
+      socket.emit('leaveRoom', { username: currentUsername, room: currentRoom });
+      location.reload();
+    };
+
+    // 画像アップロード
+    imageInput.onchange = () => {
+      const file = imageInput.files[0];
+      if(file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          socket.emit('chatMessage', { type: 'image', url: e.target.result, room: currentRoom });
+        };
+        reader.readAsDataURL(file);
+      }
+      imageInput.value = '';
+    };
+
+    // 動画アップロード
+    videoInput.onchange = () => {
+      const file = videoInput.files[0];
+      if(file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          socket.emit('chatMessage', { type: 'video', url: e.target.result, room: currentRoom });
+        };
+        reader.readAsDataURL(file);
+      }
+      videoInput.value = '';
+    };
+
+    // サーバーからのメッセージ受信
+    socket.on('chatMessage', data => {
+      if(data.room !== currentRoom) return; // ルーム違いは表示しない
+      const me = data.username === currentUsername;
+      addMessage(data, me);
     });
-  }
-</script>
 
+    // 管理画面にチャットログ配信
+    socket.on('adminMessage', data => {
+      if(!isAdmin) return;
+      const div = document.createElement('div');
+      div.textContent = `[${new Date(data.time).toLocaleTimeString()}] (${data.room}) ${data.username}: ${data.type === 'text' ? data.text : (data.type === 'image' ? '[画像]' : '[動画]')}`;
+      adminMessagesDiv.appendChild(div);
+      adminMessagesDiv.scrollTop = adminMessagesDiv.scrollHeight;
+    });
+
+    // 垢バンボタンのプロンプト
+    function banUserPrompt() {
+      const user = prompt('垢バンしたいユーザー名を入力してください');
+      if(user) {
+        socket.emit('banUser', user);
+      }
+    }
+
+    // 一斉送信ボタンのプロンプト
+    function sendBroadcastPrompt() {
+      const msg = prompt('全ユーザーへ送信するメッセージを入力してください');
+      if(msg) {
+        socket.emit('broadcastMessage', msg);
+      }
+    }
+
+    // 特定ルーム一斉送信
+    function sendRoomBroadcastPrompt() {
+      const room = prompt('ルーム名を入力してください');
+      if(!room) return;
+      const msg = prompt('送信するメッセージを入力してください');
+      if(msg) {
+        socket.emit('roomBroadcastMessage', { room, msg });
+      }
+    }
+
+    // サーバーリセット
+    function resetServer() {
+      if(confirm('本当にサーバーをリセットしますか？全データが消えます。')) {
+        socket.emit('resetServer');
+      }
+    }
+
+  </script>
 </body>
 </html>
