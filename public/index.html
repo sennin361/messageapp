@@ -2,239 +2,26 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>仙人チャット</title>
+  <title>仙人チャット - ホーム</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <!-- ホーム画面 -->
-  <div id="login">
-    <h2>仙人チャットへようこそ</h2>
-    <label for="username">名前：</label>
-    <input type="text" id="username" placeholder="名前を入力" />
-    
-    <label for="room">あいことば（ルーム名）：</label>
-    <input type="text" id="room" placeholder="あいことばを入力" />
-    
-    <button onclick="joinChat()">入室</button>
-    <button onclick="showAdmin()">管理者ログイン</button>
+  <div class="container">
+    <h1>仙人チャット</h1>
+    <form id="joinForm">
+      <input type="text" id="name" placeholder="名前を入力" required />
+      <input type="text" id="room" placeholder="あいことば" required />
+      <button type="submit">入室</button>
+    </form>
+    <button onclick="location.href='admin.html'">管理画面へ</button>
   </div>
-
-  <!-- チャット画面 -->
-  <div id="chat" style="display:none;">
-    <h2>仙人チャット</h2>
-    <div id="messages"></div>
-
-    <div id="inputArea">
-      <input type="text" id="messageInput" placeholder="メッセージを入力" />
-      <button id="send">送信</button>
-      <button id="exit">退室</button>
-    </div>
-
-    <div id="mediaArea">
-      <input type="file" id="imageInput" accept="image/*" />
-      <input type="file" id="videoInput" accept="video/*" />
-    </div>
-  </div>
-
-  <!-- 管理者画面 -->
-  <div id="admin" style="display:none;">
-    <h2>管理者画面</h2>
-    <input type="password" id="adminPass" placeholder="パスワード入力" />
-    <button onclick="loginAdmin()">ログイン</button>
-    <div id="adminContent" style="display:none;">
-      <button onclick="logoutAdmin()">ログアウト</button>
-      <button onclick="banUserPrompt()">垢バン</button>
-      <button onclick="sendBroadcastPrompt()">一斉送信</button>
-      <button onclick="sendRoomBroadcastPrompt()">ルーム一斉送信</button>
-      <button onclick="resetServer()">サーバーリセット</button>
-      <h3>全チャット履歴（リアルタイム表示）</h3>
-      <div id="adminMessages" style="height:300px; overflow-y:auto; border:1px solid #ccc; margin-top:10px; background:#fafafa; padding:10px;"></div>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
-
-    const loginDiv = document.getElementById('login');
-    const chatDiv = document.getElementById('chat');
-    const adminDiv = document.getElementById('admin');
-    const adminContentDiv = document.getElementById('adminContent');
-    const adminMessagesDiv = document.getElementById('adminMessages');
-
-    const usernameInput = document.getElementById('username');
-    const roomInput = document.getElementById('room');
-    const messageInput = document.getElementById('messageInput');
-    const messagesDiv = document.getElementById('messages');
-
-    const sendBtn = document.getElementById('send');
-    const exitBtn = document.getElementById('exit');
-
-    const imageInput = document.getElementById('imageInput');
-    const videoInput = document.getElementById('videoInput');
-
-    let currentUsername = '';
-    let currentRoom = '';
-    let isAdmin = false;
-
-    // ホーム画面→チャット画面
-    function joinChat() {
-      const username = usernameInput.value.trim();
-      const room = roomInput.value.trim();
-      if(!username || !room) {
-        alert('名前とあいことばを入力してください');
-        return;
-      }
-      currentUsername = username;
-      currentRoom = room;
-      socket.emit('joinRoom', { username, room });
-      loginDiv.style.display = 'none';
-      chatDiv.style.display = 'flex';
-    }
-
-    // 管理画面表示
-    function showAdmin() {
-      loginDiv.style.display = 'none';
-      adminDiv.style.display = 'block';
-    }
-
-    // 管理者ログイン
-    function loginAdmin() {
-      const pass = document.getElementById('adminPass').value;
-      if(pass === 'sennin25251515') {  // パスワード
-        isAdmin = true;
-        adminContentDiv.style.display = 'block';
-        adminDiv.querySelector('input').style.display = 'none';
-        adminDiv.querySelector('button').style.display = 'none';
-        socket.emit('adminLogin');
-      } else {
-        alert('パスワードが違います');
-      }
-    }
-
-    // 管理者ログアウト
-    function logoutAdmin() {
-      isAdmin = false;
-      adminContentDiv.style.display = 'none';
-      adminDiv.querySelector('input').style.display = 'inline-block';
-      adminDiv.querySelector('button').style.display = 'inline-block';
-      adminDiv.style.display = 'none';
-      loginDiv.style.display = 'block';
-      socket.emit('adminLogout');
-    }
-
-    // メッセージ表示用関数
-    function addMessage(data, me = false) {
-      const div = document.createElement('div');
-      div.classList.add('bubble');
-      div.classList.add(me ? 'me' : 'other');
-
-      let content = '';
-      if(data.type === 'text') {
-        content = data.text;
-      } else if(data.type === 'image') {
-        content = `<img src="${data.url}" alt="image" style="max-width:200px; max-height:150px;">`;
-      } else if(data.type === 'video') {
-        content = `<video controls style="max-width:200px; max-height:150px;"><source src="${data.url}"></video>`;
-      }
-
-      div.innerHTML = `<strong>${data.username}</strong><br>${content}<br><small>${new Date(data.time).toLocaleTimeString()}</small>`;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
-    // 送信ボタン押下
-    sendBtn.onclick = () => {
-      const text = messageInput.value.trim();
-      if(text) {
-        socket.emit('chatMessage', { type: 'text', text, room: currentRoom });
-        messageInput.value = '';
-      }
+    document.getElementById('joinForm').onsubmit = (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value;
+      const room = document.getElementById('room').value;
+      location.href = `chat.html?name=${name}&room=${room}`;
     };
-
-    // 退室ボタン押下
-    exitBtn.onclick = () => {
-      socket.emit('leaveRoom', { username: currentUsername, room: currentRoom });
-      location.reload();
-    };
-
-    // 画像アップロード
-    imageInput.onchange = () => {
-      const file = imageInput.files[0];
-      if(file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          socket.emit('chatMessage', { type: 'image', url: e.target.result, room: currentRoom });
-        };
-        reader.readAsDataURL(file);
-      }
-      imageInput.value = '';
-    };
-
-    // 動画アップロード
-    videoInput.onchange = () => {
-      const file = videoInput.files[0];
-      if(file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          socket.emit('chatMessage', { type: 'video', url: e.target.result, room: currentRoom });
-        };
-        reader.readAsDataURL(file);
-      }
-      videoInput.value = '';
-    };
-
-    // サーバーからのメッセージ受信
-    socket.on('chatMessage', data => {
-      if(data.room !== currentRoom) return; // ルーム違いは表示しない
-      const me = data.username === currentUsername;
-      addMessage(data, me);
-    });
-
-    // 管理画面にチャットログ配信
-    socket.on('adminMessage', data => {
-      if(!isAdmin) return;
-      const div = document.createElement('div');
-      div.textContent = `[${new Date(data.time).toLocaleTimeString()}] (${data.room}) ${data.username}: ${data.type === 'text' ? data.text : (data.type === 'image' ? '[画像]' : '[動画]')}`;
-      adminMessagesDiv.appendChild(div);
-      adminMessagesDiv.scrollTop = adminMessagesDiv.scrollHeight;
-    });
-
-    // 垢バンボタンのプロンプト
-    function banUserPrompt() {
-      const user = prompt('垢バンしたいユーザー名を入力してください');
-      if(user) {
-        socket.emit('banUser', user);
-      }
-    }
-
-    // 一斉送信ボタンのプロンプト
-    function sendBroadcastPrompt() {
-      const msg = prompt('全ユーザーへ送信するメッセージを入力してください');
-      if(msg) {
-        socket.emit('broadcastMessage', msg);
-      }
-    }
-
-    // 特定ルーム一斉送信
-    function sendRoomBroadcastPrompt() {
-      const room = prompt('ルーム名を入力してください');
-      if(!room) return;
-      const msg = prompt('送信するメッセージを入力してください');
-      if(msg) {
-        socket.emit('roomBroadcastMessage', { room, msg });
-      }
-    }
-
-    // サーバーリセット
-    function resetServer() {
-      if(confirm('本当にサーバーをリセットしますか？全データが消えます。')) {
-        socket.emit('resetServer');
-      }
-    }
-
   </script>
 </body>
 </html>
